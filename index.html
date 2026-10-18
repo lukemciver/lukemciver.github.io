@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Structure-preserving 3D mesh editing on TRELLIS 2, integrated into the Unity editor. MEng dissertation by Luke McIver, UCL.">
+<meta property="og:title" content="Structure-Preserving 3D Mesh Editing in Unity">
+<meta property="og:description" content="Paint over part of a generated mesh, describe the change, and get back the same asset with only that part edited.">
+<meta property="og:image" content="img/unity.png">
+<title>Structure-Preserving 3D Mesh Editing in Unity · Luke McIver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single reading column (~68ch) with figures that break wider; voxel-mask magenta as the one accent, preserved-region green as the secondary */
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --fg: #16181d;
+  --muted: #5a6070;
+  --line: #dde0e7;
+  --accent: #c2186b;      /* edit-mask magenta */
+  --keep: #2e8b57;        /* preserved-region green */
+  --code-bg: #eceef3;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111318; --surface: #191c23; --fg: #e8eaf0; --muted: #9aa1b2; --line: #2b303b;
+    --accent: #f062a6; --keep: #5fcf8e; --code-bg: #1f232c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111318; --surface: #191c23; --fg: #e8eaf0; --muted: #9aa1b2; --line: #2b303b;
+  --accent: #f062a6; --keep: #5fcf8e; --code-bg: #1f232c; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+img { max-width: 100%; }
+body {
+  background: var(--bg); color: var(--fg);
+  font: 400 1.0625rem/1.65 var(--body);
+  padding-inline: 20px; padding-block: 0 64px;
+}
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; gap: 64px; }
+.col { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.1; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 1.15rem; font-weight: 500; }
+p { margin: 0; }
+.eyebrow { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.muted { color: var(--muted); }
+section { display: grid; gap: 20px; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+header { padding-top: 56px; display: grid; gap: 20px; }
+.meta { font: 400 0.9rem/1.5 var(--mono); color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 6px;
+  font: 600 0.95rem/1 var(--body); text-decoration: none;
+  background: var(--accent); color: var(--surface);
+}
+.btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.btn:hover { filter: brightness(1.08); }
+
+figure { margin: 0; display: grid; gap: 10px; }
+figure img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+figcaption { font-size: 0.875rem; color: var(--muted); max-width: 72ch; }
+
+.problems { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.problem { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.problem .tag { font: 500 0.75rem/1 var(--mono); color: var(--muted); letter-spacing: 0.08em; }
+
+ol.steps { margin: 0; padding: 0; list-style: none; display: grid; gap: 24px; counter-reset: s; }
+ol.steps > li { display: grid; grid-template-columns: 2.25rem 1fr; gap: 4px 14px; counter-increment: s; }
+ol.steps > li::before {
+  content: counter(s); grid-row: span 2; width: 2rem; height: 2rem; display: grid; place-items: center;
+  font: 500 0.9rem/1 var(--mono); border: 1.5px solid var(--accent); color: var(--accent); border-radius: 4px;
+}
+ol.steps > li > * { min-width: 0; }
+.novel { font: 500 0.7rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--keep); border: 1px solid var(--keep); border-radius: 3px; padding: 3px 6px; margin-left: 6px; vertical-align: 2px; white-space: nowrap; }
+.eq { font: 400 0.95rem/1.5 var(--mono); background: var(--code-bg); border-radius: 6px; padding: 12px 14px; overflow-x: auto; white-space: nowrap; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+th, td { padding: 10px 14px; text-align: right; border-bottom: 1px solid var(--line); }
+th:first-child, td:first-child { text-align: left; }
+thead th { font: 500 0.78rem/1.3 var(--mono); color: var(--muted); letter-spacing: 0.04em; }
+tbody tr:last-child td { border-bottom: 0; }
+tr.ours td { font-weight: 600; }
+tr.ours td:first-child { color: var(--accent); }
+
+ul.contrib { margin: 0; padding-left: 1.2rem; display: grid; gap: 10px; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 32px; align-items: start; }
+.two > * { min-width: 0; }
+footer { border-top: 1px solid var(--line); padding-top: 20px; font-size: 0.875rem; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">MEng dissertation · UCL Computer Science</span>
+  <h1>Structure-preserving 3D mesh editing, inside Unity</h1>
+  <p class="col muted">Generate a textured mesh from an image, paint over the part you want changed, describe the change, and get back the same asset with only that part edited. All without leaving the Unity editor.</p>
+  <p class="meta">Luke McIver · Supervisor: Prof. Anthony Steed · 2026</p>
+  <div class="actions">
+    <a class="btn" href="https://drive.google.com/file/d/1c9yFLNciCVhZB6jfQp0GHIQgkj0QnU0T/view?usp=drive_link" target="_blank" rel="noopener">▶ Watch the demo</a>
+    <a class="btn ghost" href="#method">How it works</a>
+  </div>
+</header>
+
+<figure>
+  <img src="img/unity.png" alt="Three Unity editor screenshots of a Viking village scene: an empty dock, the user drawing a red boat sketch in the Mesh Inpaint panel, and the generated wooden sailboat placed on the water." loading="eager">
+  <figcaption>The Unity editor extension. The user sketches a boat over a frozen view of the scene, and the generated sailboat is spawned directly into it, with scene lighting and surroundings used as context.</figcaption>
+</figure>
+
+<section>
+  <span class="eyebrow">The problem</span>
+  <h2>Generation works. The workflow around it doesn't.</h2>
+  <p class="col">Image-to-3D models such as TRELLIS 2 produce a textured mesh in tens of seconds. Three things stop them being usable in a game-development workflow.</p>
+  <div class="problems">
+    <div class="problem"><span class="tag">NO EDITING</span><h3>Every change regenerates everything</h3><p class="muted">Asking for a different cap colour re-rolls the whole mesh, and every detail you wanted to keep drifts.</p></div>
+    <div class="problem"><span class="tag">3D MASKS</span><h3>Editors assume a hand-painted 3D mask</h3><p class="muted">Every latent-space editing method surveyed needs one, and painting in 3D is impractical for most users.</p></div>
+    <div class="problem"><span class="tag">NO ENGINE</span><h3>Models live outside the engine</h3><p class="muted">Generate, export, import, place. Lots of context switching and no access to the scene's lighting or geometry.</p></div>
+  </div>
+</section>
+
+<section id="method">
+  <span class="eyebrow">Method</span>
+  <h2>From a 2D brush stroke to a local 3D edit</h2>
+  <figure>
+    <img src="img/pipeline.png" alt="Pipeline diagram: P3-SAM segmentation and a 2D paint mask are raycast onto the mesh to produce a 3D voxel mask; the structure flow transformer runs Voxel FlowEdit with multi-view silhouette guidance to produce the target voxels; the SLAT transformer with cached KV produces the final target mesh." loading="lazy">
+    <figcaption>Full editing pipeline on TRELLIS 2. Left: turning a 2D paint stroke into a 3D mask. Right: editing the structure grid, then the structured latents (SLAT), then decoding.</figcaption>
+  </figure>
+  <ol class="steps col">
+    <li>
+      <h3>Paint selects segments, not pixels</h3>
+      <p class="muted">The mesh is segmented once with P3-SAM. Each painted pixel is raycast onto the mesh, and the union of the hit faces' segment labels becomes the selection. Labels are lifted to the voxel grid by majority vote, using a FlexiCubes vertex-to-voxel map saved at generation time.</p>
+    </li>
+    <li>
+      <h3>Extend the mask into empty space <span class="novel">Novel</span></h3>
+      <p class="muted">New geometry lives in voxels that are currently empty, which the user can't paint on. The Projected-Diff 3D Extension (PDE) projects the source voxels to per-pixel front and back depth buffers, then seeds empty voxels wherever the 2D before/after image differs.</p>
+    </li>
+    <li>
+      <h3>Edit the structure with velocity differencing</h3>
+      <p class="muted">A training-free reimplementation of Easy3E's Voxel FlowEdit. The flow model runs under both source and target conditioning, and only the masked velocity difference is integrated, so unedited regions stay on the source trajectory.</p>
+      <div class="eq">z ← z − Δt · M ⊙ (v<sub>tgt</sub> − v<sub>src</sub>)</div>
+    </li>
+    <li>
+      <h3>Multi-view slab silhouette guidance <span class="novel">Novel · E1</span></h3>
+      <p class="muted">Easy3E's single-view silhouette loss can't see a gap behind the front surface, so structure-changing edits tear. Rendering silhouettes from four orbit cameras, accumulating occupancy over only the front half of each ray, makes the gap visible to the loss and closes it.</p>
+    </li>
+    <li>
+      <h3>Forward-cached KV injection for the SLAT stages <span class="novel">Novel · E2</span></h3>
+      <p class="muted">The inputs to each attention layer's key/value projection are cached from the original generation, and the preserved region's keys and values are rebuilt from them while editing shape and texture latents, anchoring them to the source without VoxHammer's inversion step.</p>
+    </li>
+  </ol>
+</section>
+
+<section>
+  <span class="eyebrow">Results</span>
+  <h2>Local edits that keep the rest of the asset intact</h2>
+  <div class="two">
+    <figure>
+      <img src="img/edits.png" alt="Two edits: a wooden teddy bear given a tuxedo, and a lantern on a post made diamond-shaped and blue. Unedited regions are unchanged." loading="lazy">
+      <figcaption>Text-driven local edits. The bear's head and the lamp post are preserved.</figcaption>
+    </figure>
+    <div style="display:grid;gap:16px;min-width:0">
+      <p>Compared with regenerating from the edited image, the method cuts perceptual drift in the unedited region by about 4×, with edit quality within noise of the baselines.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Method</th><th>Pres. LPIPS ↓</th><th>Pres. SSIM ↑</th><th>Edit CLIP-I ↑</th><th>Time (s)</th></tr></thead>
+          <tbody>
+            <tr><td>Full re-inference</td><td>0.231</td><td>0.877</td><td>0.851</td><td>18.3</td></tr>
+            <tr><td>Easy3E (reproduced)</td><td>0.064</td><td>0.958</td><td>0.846</td><td>108.5</td></tr>
+            <tr class="ours"><td>Ours (E1 + E2)</td><td>0.054</td><td>0.957</td><td>0.846</td><td>97.3</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:0.875rem">Aggregate over 7 edits on a single RTX 3090. Preservation metrics are measured on the unedited region. The clearest gain over Easy3E is on structure-changing edits, where it tears and the full method doesn't.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">System</span>
+  <h2>A Unity editor extension backed by a GPU service</h2>
+  <p class="col">A C# editor extension (UIToolkit) talks over HTTP to a FastAPI backend on a remote GPU. Gemini 2.5 Flash handles the 2D image edit, and TRELLIS 2 with the editing pipeline above produces the GLB, which is imported and spawned into the scene. Edits run as asynchronous jobs, and the asset library keeps each mesh's edit history.</p>
+  <figure>
+    <img src="img/architecture.png" alt="Architecture diagram: Unity editor panels (MeshInpaintWindow, AssetBrowser, MaskPainter, ActionPanel, JobQueue, Settings) call an InpaintApiClient and MeshSpawner, which communicate with a FastAPI router exposing generate, edit, upload, assets and jobs endpoints, backed by Gemini 2.5 Flash, TRELLIS 2 and file storage." loading="lazy">
+    <figcaption>Architecture. Panel colours match the annotated editor screenshot on the left.</figcaption>
+  </figure>
+</section>
+
+<section class="col">
+  <span class="eyebrow">Contributions</span>
+  <h2>What the project adds</h2>
+  <ul class="contrib">
+    <li>An open, consumer-GPU reimplementation of Easy3E on TRELLIS 2, plus two extensions: multi-view slab silhouette guidance (fixing a failure mode the original paper does not report) and forward-cached KV injection for the SLAT stages.</li>
+    <li>A 2D-to-3D edit-region pipeline (raycast segment selection, a persisted vertex-to-voxel map, and PDE) that replaces hand-authored 3D masks with 2D painting, without a material quality penalty.</li>
+    <li>The first native Unity tool for in-engine 3D mesh generation and editing, meeting seven user-level requirements including scene-context capture and two-way selection sync.</li>
+  </ul>
+</section>
+
+<footer>Luke McIver · MEng Computer Science, University College London · Built on TRELLIS 2 (Microsoft Research, Tsinghua)</footer>
+
+</div>
+</body>
+</html>
