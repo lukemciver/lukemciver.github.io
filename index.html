@@ -153,7 +153,7 @@ footer { border-top: 1px solid var(--line); padding-top: 20px; font-size: 0.875r
     </li>
     <li>
       <h3>Edit the structure with velocity differencing</h3>
-      <p class="muted">A training-free reimplementation of Easy3E's Voxel FlowEdit. The flow model runs under both source and target conditioning, and only the masked velocity difference is integrated, so unedited regions stay on the source trajectory.</p>
+      <p class="muted">Training-free, and developed concurrently with Easy3E's Voxel FlowEdit; the final version is aligned with their published algorithm. The flow model runs under both source and target conditioning, and only the masked velocity difference is integrated, so unedited regions stay on the source trajectory.</p>
       <div class="eq">z ← z − Δt · M ⊙ (v<sub>tgt</sub> − v<sub>src</sub>)</div>
     </li>
     <li>
@@ -206,7 +206,7 @@ footer { border-top: 1px solid var(--line); padding-top: 20px; font-size: 0.875r
   <span class="eyebrow">Contributions</span>
   <h2>What the project adds</h2>
   <ul class="contrib">
-    <li>An open, consumer-GPU reimplementation of Easy3E on TRELLIS 2, plus two extensions: multi-view slab silhouette guidance (fixing a failure mode the original paper does not report) and forward-cached KV injection for the SLAT stages.</li>
+    <li>Velocity-difference editing on TRELLIS 2 that runs on a consumer GPU, developed concurrently with Easy3E and aligned with its published algorithm, plus two extensions: multi-view slab silhouette guidance (fixing a failure mode the original paper does not report) and forward-cached KV injection for the SLAT stages.</li>
     <li>A 2D-to-3D edit-region pipeline (raycast segment selection, a persisted vertex-to-voxel map, and PDE) that replaces hand-authored 3D masks with 2D painting, without a material quality penalty.</li>
     <li>The first native Unity tool for in-engine 3D mesh generation and editing, meeting seven user-level requirements including scene-context capture and two-way selection sync.</li>
   </ul>
